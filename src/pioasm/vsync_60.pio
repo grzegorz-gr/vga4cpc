@@ -1,0 +1,73 @@
+; VSync for VGA output
+; by gregg, based on Hunter Adam's library
+
+.program vsync_60
+.side_set 1 opt
+
+; This program is responsible for generating VSync for VGA output.
+; It is in the middle of pipeline with input irq from hsync state machine, and it controls rgb one.
+; For each line, it waits for irq from HSync state machine meaning that the new line starts.
+; For VSync signal lines it generates VSync signal, and for visible lines it sends irq
+; to RGB state machine to generate RGB signals for this line.
+
+; Resolution is 800x600 with 60fps, so we need to generate the following lines for each frame following DMT standard:
+; back porch:   23  lines
+; visible:      600 lines
+; frontporch:   1   line
+; sync pulse:   4   lines
+; total:        628 lines
+; Polarity for vsync is +
+
+; It is a quite important detail that nothing in this file directly sets vertical frequency.
+; It is just horizontal frequency divided by total number of lines, so total number of lines
+; impacts it indirectly
+
+pull block side 0               ; Pull number of visible lines-1 (too big number to set it in other way)
+                                ; and set VSync to inactive
+
+.wrap_target                    
+
+; visible lines
+mov x, osr
+visible:
+    wait 1 irq 0                ; Active part of new line start
+    irq 1                       ; Let other state machine know, that it should start generating pixels
+    jmp x-- visible             ; Repeat for each visible line
+
+; front porch
+wait 1 irq 0                    ; Just wait for one front porch line and do nothing
+
+; vsync pulse
+set x, 3
+pulse:
+    wait 1 irq 0            ; Line starts
+    jmp x-- pulse side 1    ; Set Vsync high and repeat for each line
+
+; back porch
+set x, 22
+backporch:
+    wait 1 irq 0                ; Line starts
+    jmp x-- backporch side 0    ; Set Vsync back to low and repeat for each line
+
+.wrap
+
+
+
+% c-sdk {
+static inline void vsync_60_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = vsync_60_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 1);
+    sm_config_set_sideset_pins(&c, pin);
+
+    // Clock must be equal the the one in hsync, or we add jitter.
+    // It is critical, because time between hsync (when we receive irq 0 here) and rgb start
+    // (irq 1 arrives to rgb sm from here) must be constant and predictable, so can be taken
+    // into account in rgb sm. In other case each line will move a bit to the sides and
+    // that looks shitty or even unusable.
+    sm_config_set_clkdiv_int_frac(&c, 8, 128);
+    
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}

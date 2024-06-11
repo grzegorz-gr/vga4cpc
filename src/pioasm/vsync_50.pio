@@ -1,0 +1,81 @@
+; VSync for VGA output
+; by gregg, based on Hunter Adam's library
+
+.program vsync_50
+.side_set 1 opt
+
+; This program is responsible for generating VSync for VGA output.
+; It is in the middle of pipeline with input irq from hsync state machine, and it controls rgb one.
+; For each line, it waits for irq from HSync state machine meaning that the new line starts.
+; For VSync signal lines it generates VSync signal, and for visible lines it sends irq
+; to RGB state machine to generate RGB signals for this line.
+
+; Resolution is 720x576 with 50fps, so we need to generate the following lines for each frame following CEA-861 standard:
+; back porch:   39  lines
+; visible:      576 lines
+; frontporch:   5   lines
+; sync pulse:   5   lines
+; total:        625 lines
+; Polarity for vsync is -
+
+; It is a quite important detail that nothing in this file directly sets vertical frequency.
+; It is just horizontal frequency divided by total number of lines, so total number of lines
+; impacts it indirectly
+
+pull block side 1               ; Pull number of visible lines-1 (too big number to set it in other way)
+                                ; and set VSync to inactive
+
+.wrap_target
+
+; visible lines
+mov x, osr
+visible:
+    wait 1 irq 0                ; Active part of new line start
+    irq 1                       ; Let other state machine know, that it should start generating pixels
+    jmp x-- visible             ; Repeat for each visible line
+
+; front porch
+set x, 4
+frontporch:
+    wait 1 irq 0                ; Wait for start of new line and do nothing
+    jmp x-- frontporch
+
+; vsync pulse
+set x, 4
+pulse:
+    wait 1 irq 0            ; Line starts
+    jmp x-- pulse side 0    ; Set Vsync low and repeat for each line
+
+; back porch
+; We need 39 lines, but max value for "set" instruction is 31, so let's do two loops
+set x, 31
+backporch1:
+    wait 1 irq 0                ; Line starts
+    jmp x-- backporch1 side 1   ; Set Vsync back to high and repeat for each line
+set x, 6
+backporch2:
+    wait 1 irq 0                ; Line starts
+    jmp x-- backporch2 side 1   ; Set Vsync back to high and repeat for each line
+
+.wrap
+
+
+
+% c-sdk {
+static inline void vsync_50_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = vsync_50_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 1);
+    sm_config_set_sideset_pins(&c, pin);
+    
+    // Clock must be equal the the one in hsync, or we add jitter.
+    // It is critical, because time between hsync (when we receive irq 0 here) and rgb start
+    // (irq 1 arrives to rgb sm from here) must be constant and predictable, so can be taken
+    // into account in rgb sm. In other case each line will move a bit to the sides and
+    // that looks shitty or even unusable.
+    sm_config_set_clkdiv_int_frac(&c, 18, 240);
+    
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}

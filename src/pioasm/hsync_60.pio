@@ -1,0 +1,75 @@
+; HSync for VGA output
+; by gregg, based on Hunter Adam's library 
+
+.program hsync_60
+
+; This program is responsible for generating Hsync for VGA output.
+; It is the first step in the hsync->vsync->rgb pipeline, so the timing is most critical here.
+
+; This version uses DMT timings for 800x600p60 standard.
+
+; According to the standard the timing should be (in pixels):
+;
+; total per line:   1056
+; visible:          800
+; front porch:      40
+; hsync signal:     128
+; back porch:       88
+
+; Hsync (and vsync) polarity is +
+
+; Pixel clock is 40Mhz. Clock divider in rgb sm is set to (1+16/256) to make it exactly 1 pixel per 3 cycles. Here the divider is 8.5 (8 times slower).
+; That means we process one pixel in 8/3 cycles.
+; We can convert table above from pixels to cycles:
+;
+; total per line:   396
+; visible:          300
+; front porch:      15
+; hsync signal:     48
+; back porch:       33
+
+
+set pins, 0
+pull block              ; Pull number of instructions for visible+front porch - 2 = 313
+
+.wrap_target
+
+; visible + front porch     1 cycle in "mov" + 314 cycles in loop
+mov x, osr
+visibleandfront:
+   jmp x-- visibleandfront
+
+; hsync pulse               32 cycles in "set" + 16 cycles in "nop" = 48 cycles in total
+set pins, 1 [31]        ; positive polarity so signal needs to go up
+nop [15]
+
+; back porch
+; This part is a bit tricky. We need 34 cycles and two operations - set signal back to low and trigger rgb pio to draw pixels.
+; Signal should be switched immediately and other pio should start drawing pixels at the end of this step. But it will not start
+; at the same moment we send irq 0. Exact timing it like that.
+;
+; cycle 1           signal set to high 
+; cycles 2..31      nothing
+; cycle 32          we send irq 0 to vsync state machine
+; cycle 33          we do nothing; vsync state machine sends irq 1 to rgb state machine (that is why it needs the same clock divider)
+; cycle 34          we do nothing; rgb state machine starts drawing pixels
+set pins, 0 [30]
+irq 0 [2]
+
+.wrap
+
+
+
+% c-sdk {
+static inline void hsync_60_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = hsync_60_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 1);
+    
+    // Source of this number is explained obove. It must be the same as in vsync sm and be a multiply of rgb sm divider (like in this case),
+    // or there must be no divider in rgb sm. In other case, screen would look terrible (each line is randomly moving horizontally)
+    sm_config_set_clkdiv_int_frac(&c, 8, 128);
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}

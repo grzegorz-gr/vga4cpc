@@ -1,0 +1,48 @@
+
+.program vsyncgen
+
+; This code extracts vsync from csync. It is later sent (through pins) to both host and other pio.
+; The output vsync signal is high when active, and is not perfectly aligned, but rather delayed a bit,
+; but so far it did not cause any issues
+
+start:
+set pins, 0     ; No Vsync at start, but we will also return here at the end on vsync
+
+.wrap_target
+wait 1 pin 0    ; wait until there is no vsync not hsync on input
+wait 0 pin 0    ; wait until some sync signal start, but we don't know if it is hsync or vsync
+
+; Vsync signal will be much longer than HSync, so we need to wait a moment to check it
+; First I tried to wait to the middle of line, but that caused issues in Prehistorik II
+; Looks like this value works best so far, but it was found just by experimenting
+set x, 10
+waitabit:
+    jmp x--, waitabit [7]
+
+; If it was a HSync, the CSync signal is high so jump to start to set output to low value (no VSync)
+jmp pin, start
+
+; In other case, set it to 1, and jump to ".wrap_target"
+set pins, 1
+
+.wrap
+
+
+% c-sdk {
+static inline void vsyncgen_program_init(PIO pio, uint sm, uint offset, uint csync_in_pin, uint vsync_out_pin) {
+    pio_sm_config c = vsyncgen_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&c, csync_in_pin);
+    sm_config_set_jmp_pin(&c, csync_in_pin);
+    sm_config_set_set_pins(&c, vsync_out_pin, 1);
+    sm_config_set_clkdiv(&c, 8);    // This speed looks fast enough
+    pio_gpio_init(pio, csync_in_pin);
+    pio_gpio_init(pio, vsync_out_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, csync_in_pin, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, vsync_out_pin, 2, true);
+    sm_config_set_in_shift(&c, true, false, 1);
+    sm_config_set_out_shift(&c, true, false, 1);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

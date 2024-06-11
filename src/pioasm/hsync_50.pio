@@ -1,0 +1,77 @@
+; HSync for VGA output
+; by gregg, based on Hunter Adams' library 
+
+.program hsync_50
+
+; This program is responsible for generating Hsync for VGA output.
+; It is the first step in the hsync->vsync->rgb pipeline, so the timing is most critical here.
+
+; This version uses CEA-861 timings for 576p50 standard, adjusted a bit to get closer to 50.08Hz
+; and minimize choppy scrolls.
+
+; According to the standard the timing should be (in pixels):
+;
+; total per line:   864
+; visible:          720     (actually we will show 800 - details in rgb pio file)
+; front porch:      12
+; hsync signal:     64
+; back porch:       68
+
+; Hsync (and vsync) polarity is -
+
+; Pixel clock should be 27Mhz, but that would give us 50 frames per second.
+; We want to get closer to 50.08 fps, so pixel clock should be 27.0432Mhz.
+; Clock divider is set to (18 + 240/256), that gives us 6.759Mhz clock, that is very close
+; to a quarter of desired pixel clock.
+; In other words - time spent here in one cpu cycle equals 4 pixels.
+; We can convert table above from pixels to cycles:
+;
+; total per line:   216
+; visible:          180
+; front porch:      3
+; hsync signal:     16
+; back porch:       17
+
+set pins, 1
+pull block              ; Pull number of instructions for visible+front porch - 2 = 181
+
+.wrap_target
+
+; visible + front porch     1 cycle in "mov" + 182 cycles in loop
+mov x, osr
+visibleandfront:
+   jmp x-- visibleandfront
+
+; hsync pulse
+set pins, 0 [15]        ; negative polarity so signal needs to go down
+
+; back porch
+; This part is a bit tricky. We need 17 cycles and two operations - set signal back to high and trigger rgb pio to draw pixels.
+; Signal should be switched immediately and other pio should start drawing pixels at the end of this step. But it will not start
+; at the same moment we send irq 0. Exact timing it like that.
+;
+; cycle 1           signal set to high 
+; cycles 2..14      nothing
+; cycle 15          we send irq 0 to vsync state machine
+; cycle 16          we do nothing; vsync state machine sends irq 1 to rgb state machine (that is why it needs the same clock divider)
+; cycle 17          we do nothing; rgb state machine starts drawing pixels
+set pins, 1 [13]
+irq 0 [2]
+
+.wrap
+
+
+
+% c-sdk {
+static inline void hsync_50_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = hsync_50_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 1);
+
+    // Source of this number is explained obove. It must be the same as in vsync sm and be a multiply of rgb sm divider,
+    // or there must be no divider in rgb sm (like in this case). In other case, screen would look terrible (each line is randomly moving horizontally)
+    sm_config_set_clkdiv_int_frac(&c, 18, 240);
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}

@@ -1,0 +1,67 @@
+; RGB reding for CPC input
+; by gregg
+
+.program rgbin
+
+; This code is responsible for collecting RGB input from Amstrad and sending it through a queue to array where we keep our copy
+
+pull block      ; Just read number of pixels-1 per line, and put it to register y
+mov y, osr      ; We can't set this register in any other way, because the number is just too big
+
+.wrap_target    ; Here we start reading each line 
+wait 0 pin 7    ; Wait until there is no vsync (we created this signal from csync, 1 means there is VSync in progress)
+wait 0 pin 6    ; Wait until hsync starts (actually we use csync, but vsync is not in progress so hsync == csync)
+
+; Here comes the trick to support the most popular smooth scroll solution.
+; Normally hsync (The one on GA output, not the input) takes 4us, but it can be reduced to achieve smooth scroll.
+; So far I am handling only the most popular case when it is reduced to 3us.
+; In such a case we should start reading the line .5us earlier (half of the difference)
+
+; At this moment we are at the beginning of hsync signal, so let's wait 3.5us. The clock is 128Mhz so we need 448 cycles:
+
+set x, 12                   ; 1 cycle
+waitloop:                   ; 13*32 = 416 cycles
+  jmp x--, waitloop [31]
+nop [30]                    ; 31 cycles
+
+; We waited 3.5us so there are two options now:
+; 1. The hsync was 3us long, so we are .5us after it, so the signal level is already high
+; 2. The hsync is 4us so it still did not finish, and the level is low. It will go up after .5us
+
+wait 1 pin 6    ; If hsync was 3us (option 1) it is already high so we don't wait
+                ; If hsync is 4us (option 2) we will spend .5us in this line
+                ; That gives us exactly .5us difference that we need for "Relentless" to be playable
+
+
+; Backporch
+set x, 31
+porch:
+  jmp x-- porch [31]
+
+nop     ; we need to adjust the timing by one cycle, to not read "between" pixels and avoid flickering
+
+; Now just read the line and send to queue. Each mode-2 pixel is exactly 8 cycles
+
+mov x, y        ; Copy number of lines-1 to register x
+readpixel:
+    in pins, 6    ; Read 6 bits (2 bits per color) from input pins
+    push  [5]     ; Send them (as one byte) to queue. Then wait 5 more cycles to get 8 cycles per iteration
+    jmp x-- readpixel   ; repeat x more times
+
+.wrap
+
+
+% c-sdk {
+static inline void rgbin_program_init(PIO pio, uint sm, uint offset, uint first_rgb_pin) {
+    pio_sm_config c = rgbin_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, first_rgb_pin);
+    // We use 8 pins in total: 6 for RGB, 1 for csync and 1 for vsync
+    pio_sm_set_consecutive_pindirs(pio, sm, first_rgb_pin, 8, false);
+    for (int i = 0; i < 8; ++i) {
+        pio_gpio_init(pio, first_rgb_pin + i);
+    }
+    sm_config_set_in_shift(&c, false, false, 6);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

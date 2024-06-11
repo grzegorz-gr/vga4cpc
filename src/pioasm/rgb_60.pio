@@ -1,0 +1,41 @@
+; RGB for VGA output
+; by gregg, based on Hunter Adams' library
+
+.program rgb_60
+
+; This program just sends pixels to VGA. This version handles 800x600x60 output mode in DMT standard. 
+;
+; We set clock divider to 1+16/256, so this state machine runs at 120.47Mhz. Pixel clock should be 40Mhz,
+; that is very close to one third of our clock. That means we need to send one pixel in 3 cycles.
+
+pull block 					; Pull number of active pixels per line - 1
+mov y, osr 					; And keep value in register y
+
+.wrap_target            ; One iteration per line
+
+set pins, 0 			; Zero RGB pins during blank period (hsync + porches)
+mov x, y                ; x will be used to count cycles
+
+wait 1 irq 1            ; When we get this irq, it means backporch is finished and we should send pixels
+
+onepixel:                   ; 3 cycles per pixel total:
+	pull block				  ; pull color value  (1 cycle)
+    out pins, 6   		      ; set output rgb pins (1 cycle)
+	jmp x-- onepixel		  ; repeat for each pixel in line (1 cycle)
+
+.wrap
+
+
+% c-sdk {
+static inline void rgb_60_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_sm_config c = rgb_50_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 6);   // 2 pins per color, 6 in total
+    sm_config_set_out_pins(&c, pin, 6);
+    sm_config_set_clkdiv_int_frac(&c, 1, 16) ;
+    for (int i = 0; i < 6; ++i) {
+        pio_gpio_init(pio, pin + i);
+    }    
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 6, true);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
