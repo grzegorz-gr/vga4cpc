@@ -6,11 +6,11 @@
 // Pico GPIO pins assignment. They may change once I move from breadboard prototype to a real pcb.
 #define FIRST_RGB_IN_PIN 0   // First of 8 inputs: blue, blue, green, green, red, red, csync, vsync
 #define CSYNC_IN_PIN_PIO 6   // csync pin from Amstrad to PIO
-#define FIRST_RGB_OUT_PIN 8  // First of 6 outputs: blue, blue, green, green, red, red
-#define HSYNC_OUT_PIN 16     // VGA horizontal sync signal
-#define VSYNC_OUT_PIN 17     // VGA vertical sync signal
-#define VSYNC_GENERATOR_OUT_PIN 18  // Input vsync signal separated from csync. Goes to pin 7 and 22.
-#define CSYNC_IN_PIN_HOST 21 // csync pin from Amstrad to host
+#define FIRST_RGB_OUT_PIN 14  // First of 6 outputs: blue, blue, green, green, red, red
+#define HSYNC_OUT_PIN 12     // VGA horizontal sync signal
+#define VSYNC_OUT_PIN 13     // VGA vertical sync signal
+#define VSYNC_GENERATOR_OUT_PIN 10  // Input vsync signal separated from csync. Goes to pin 7 and 22.
+#define CSYNC_IN_PIN_HOST 11 // csync pin from Amstrad to host
 #define VSYNC_IN_PIN_HOST 22 // vsync pin from VSYNC generating pio to host
 #define VFREQ_SWITCH_PIN 26  // Switch between 576p50 (connected to GND) and 800x600p60 (not connected)
 

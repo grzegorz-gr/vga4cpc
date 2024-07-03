@@ -9,13 +9,13 @@ start:
 set pins, 0     ; No Vsync at start, but we will also return here at the end on vsync
 
 .wrap_target
-wait 1 pin 0    ; wait until there is no vsync not hsync on input
-wait 0 pin 0    ; wait until some sync signal start, but we don't know if it is hsync or vsync
+wait 0 pin 0    ; wait until there is no vsync not hsync on input
+wait 1 pin 0    ; wait until some sync signal start, but we don't know if it is hsync or vsync
 
 ; Vsync signal will be much longer than HSync, so we need to wait a moment to check it
 ; First I tried to wait to the middle of line, but that caused issues in Prehistorik II
 ; Looks like this value works best so far, but it was found just by experimenting
-set x, 10
+set x, 29
 waitabit:
     jmp x--, waitabit [7]
 
@@ -39,7 +39,7 @@ static inline void vsyncgen_program_init(PIO pio, uint sm, uint offset, uint csy
     pio_gpio_init(pio, csync_in_pin);
     pio_gpio_init(pio, vsync_out_pin);
     pio_sm_set_consecutive_pindirs(pio, sm, csync_in_pin, 1, false);
-    pio_sm_set_consecutive_pindirs(pio, sm, vsync_out_pin, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, vsync_out_pin, 1, true);
     sm_config_set_in_shift(&c, true, false, 1);
     sm_config_set_out_shift(&c, true, false, 1);
     pio_sm_init(pio, sm, offset, &c);

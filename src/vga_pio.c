@@ -25,11 +25,11 @@ void setup_vga_pio(bool is_50hz) {
     if (is_50hz) {
             hsync_50_program_init(VGA_PIO, HSYNC_OUT_SM, hsync_offset, HSYNC_OUT_PIN);
             vsync_50_program_init(VGA_PIO, VSYNC_OUT_SM, vsync_offset, VSYNC_OUT_PIN);
-            rgb_50_program_init(VGA_PIO, RGB_OUT_SM, rgb_offset, 8);
+            rgb_50_program_init(VGA_PIO, RGB_OUT_SM, rgb_offset, FIRST_RGB_OUT_PIN);
     } else {
             hsync_60_program_init(VGA_PIO, HSYNC_OUT_SM, hsync_offset, HSYNC_OUT_PIN);
             vsync_60_program_init(VGA_PIO, VSYNC_OUT_SM, vsync_offset, VSYNC_OUT_PIN);
-            rgb_60_program_init(VGA_PIO, RGB_OUT_SM, rgb_offset, 8);
+            rgb_60_program_init(VGA_PIO, RGB_OUT_SM, rgb_offset, FIRST_RGB_OUT_PIN);
     }
 
     pio_sm_put_blocking(VGA_PIO, HSYNC_OUT_SM, is_50hz ? H_ACTIVE_FRONT_50_MINUS2 : H_ACTIVE_FRONT_60_MINUS2);
