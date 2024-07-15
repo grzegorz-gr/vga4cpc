@@ -17,7 +17,9 @@ void start_cpc_dma_loop(uint8_t *screen) {
     gpio_set_dir(VSYNC_IN_PIN_HOST, GPIO_IN);
 
     int next_line_idx = 0;
-    
+
+    bool pio_started = false;
+
     while (1) {     // One frame is read in one iteration
 
         // We may be in the middle of frame, so wait for vsync to get active - beginning of new frame.
@@ -59,6 +61,12 @@ void start_cpc_dma_loop(uint8_t *screen) {
                 CPC_SCREEN_WIDTH,
                 true
             );
+
+            if (!pio_started) {
+                pio_enable_sm_mask_in_sync(CPC_PIO, (1u << RGB_IN_SM));
+                pio_started = true;
+            }
+
 
             ++next_line_idx;
         }

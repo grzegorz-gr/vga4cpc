@@ -1,4 +1,4 @@
-; RGB reding for CPC input
+; Reading RGB from CPC input
 ; by gregg
 
 .program rgbin
@@ -7,6 +7,8 @@
 
 pull block      ; Just read number of pixels-1 per line, and put it to register y
 mov y, osr      ; We can't set this register in any other way, because the number is just too big
+
+wait 1 pin 7    ; If we just started, wait for first frame to start, to be sure input vsync is already being generated
 
 .wrap_target    ; Here we start reading each line 
 wait 0 pin 7    ; Wait until there is no vsync (we created this signal from csync, 1 means there is VSync in progress)
@@ -62,6 +64,5 @@ static inline void rgbin_program_init(PIO pio, uint sm, uint offset, uint first_
     }
     sm_config_set_in_shift(&c, false, false, 6);
     pio_sm_init(pio, sm, offset, &c);
-    pio_sm_set_enabled(pio, sm, true);
 }
 %}
