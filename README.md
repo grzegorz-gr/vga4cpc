@@ -33,6 +33,8 @@ Parts:<br />
 <br /><br />
 I wanted to make it easy to solder so almost all parts are TH. Raspberry Pi Pico and comparators are SMD (there was no TH option), but they are quite big and they are simple to solder even without a microscope.
 <br /><br />
+You need to connect it to Amstrad video port using J2 connector. The pins are: 1 - blue, 2 - green, 3 - red, 4 - GND, 5 - csync. You can connect din-6/din-5 plug there, or solder directly to Amstrad PCB.
+<br /><br />
 After (or before) building the PCB you just need to upload the software to RPI Pico. Connect it with USB cable to PC/Mac, keeping the small button on Pico board pressed. It should mount as a storage device. Just copy uf2 file there. Pico should unmount and restart then.
 
 ## How to use it
