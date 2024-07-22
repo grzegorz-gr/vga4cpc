@@ -1,5 +1,8 @@
 # vga4cpc
 VGA output for Amstrad CPC based on Raspberry Pi Pico.<br /> <br />
+
+<img src="./board.jpg" width=50% height=50%>
+
 The goal of this project was to build a scandoubler for Amstrad CPC that is cheap, simple to build and can handle the most popular tricks that Amstrad software does (e.g. smooth scroll) that standard scandoublers usually don't support.
 It should work with most LCD monitors. It supports 50.08 FPS to make animations look smoother, but there is also an option to use 60 FPS, if your monitor does not support low frequencies.
 
