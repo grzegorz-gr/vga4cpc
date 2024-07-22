@@ -7,7 +7,7 @@ Please keep in mind that I am a beginner in electronics, so I could make some se
 
 
 ## Short demo
-...TODO...
+[https://youtu.be/5xjjsLVpjv0]
 
 ## How to build it
 Gerber files are in "gerber" directory. I used them with JLCPCB. <br /><br />
